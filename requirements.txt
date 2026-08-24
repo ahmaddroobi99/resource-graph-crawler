@@ -2,3 +2,10 @@ requests>=2.31
 beautifulsoup4>=4.12
 lxml>=4.9
 pytest>=7.4
+
+# Optional: OCR for passwords rendered only as image pixels (e.g. the
+# whiteboard scan). These Python packages also need the Tesseract engine on the
+# system, e.g. `winget install UB-Mannheim.TesseractOCR` on Windows. The crawler
+# runs fine without them; it just skips pixel-only images.
+pillow>=10.0
+pytesseract>=0.3.10

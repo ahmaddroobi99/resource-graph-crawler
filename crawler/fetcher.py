@@ -1,6 +1,7 @@
 """Authenticated HTTP access for crawler resources."""
 
 import logging
+import time
 
 import requests
 
@@ -16,20 +17,29 @@ def get_content_type(response: requests.Response) -> str:
     return response.headers.get("Content-Type", "").lower()
 
 
-def fetch(url: str) -> requests.Response | None:
+def fetch(url: str, retries: int = 3) -> requests.Response | None:
     """Fetch one in-scope URL with Basic Auth and bounded redirects."""
     if not is_in_scope(url):
         return None
     current_url = url
     try:
         for _ in range(6):
-            response = requests.get(
-                current_url,
-                auth=(USERNAME, PASSWORD),
-                headers={"User-Agent": USER_AGENT},
-                timeout=REQUEST_TIMEOUT,
-                allow_redirects=False,
-            )
+            response = None
+            for attempt in range(retries + 1):
+                try:
+                    response = requests.get(
+                        current_url,
+                        auth=(USERNAME, PASSWORD),
+                        headers={"User-Agent": USER_AGENT},
+                        timeout=REQUEST_TIMEOUT,
+                        allow_redirects=False,
+                    )
+                    break
+                except requests.RequestException as exc:
+                    if attempt == retries:
+                        raise
+                    LOGGER.warning("Retrying %s after request failure: %s", current_url, exc)
+                    time.sleep(0.25 * (attempt + 1))
             if response.is_redirect or response.is_permanent_redirect:
                 location = response.headers.get("Location")
                 next_url = make_absolute(current_url, location or "")

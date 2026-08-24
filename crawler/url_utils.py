@@ -1,16 +1,24 @@
 """URL resolution, normalization, and scope checks."""
 
-from urllib.parse import urldefrag, urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urldefrag, urlencode, urljoin, urlsplit, urlunsplit
 
-from config import ALLOWED_HOST
+from config import ALLOWED_HOST, TRACKING_PARAMS
+
+
+def _strip_tracking(query: str) -> str:
+    """Drop volatile query parameters so equivalent URLs normalize identically."""
+    kept = [(key, value) for key, value in parse_qsl(query, keep_blank_values=True)
+            if key.lower() not in TRACKING_PARAMS]
+    return urlencode(kept)
 
 
 def normalize(url: str, base: str | None = None) -> str:
-    """Resolve an optional relative URL and remove its fragment."""
+    """Resolve a relative URL, drop its fragment, and strip tracking params."""
     resolved = urljoin(base, url) if base else url
     without_fragment, _ = urldefrag(resolved.strip())
     parts = urlsplit(without_fragment)
-    return urlunsplit((parts.scheme.lower(), parts.netloc, parts.path or "/", parts.query, ""))
+    return urlunsplit((parts.scheme.lower(), parts.netloc, parts.path or "/",
+                       _strip_tracking(parts.query), ""))
 
 
 def is_in_scope(url: str) -> bool:

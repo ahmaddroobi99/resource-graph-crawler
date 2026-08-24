@@ -13,3 +13,16 @@ def test_rejects_external_host():
 
 def test_root_path_is_stable():
     assert normalize("http://54.214.7.161/#top") == "http://54.214.7.161/"
+
+
+def test_strips_tracking_and_pagination_params():
+    # utm/ref/v/hl/page tags never identify a distinct resource, so they are
+    # dropped and every variant collapses onto the same canonical URL.
+    canonical = "http://54.214.7.161/docs/"
+    assert normalize("http://54.214.7.161/docs/?utm_source=internal") == canonical
+    assert normalize("http://54.214.7.161/docs/?ref=nav&v=3") == canonical
+    assert normalize("http://54.214.7.161/report/?page=2") == "http://54.214.7.161/report/"
+
+
+def test_preserves_meaningful_query_params():
+    assert normalize("http://54.214.7.161/search?q=alerts") == "http://54.214.7.161/search?q=alerts"

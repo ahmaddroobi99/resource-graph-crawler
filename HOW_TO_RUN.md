@@ -47,9 +47,13 @@ Useful options:
 ```powershell
 python main.py --verbose
 python main.py --max-pages 6000
+python main.py --max-pages 10000 --workers 16
 ```
 
 `--max-pages` is a safety limit. It does not add URLs or guess paths; it only prevents an unexpectedly large discovered graph from running forever.
+`--workers` controls bounded parallel fetching. Discovery and queueing remain
+BFS batches, while requests in one batch run concurrently to reduce network
+latency.
 
 ## 5. Verify the final output
 
@@ -78,8 +82,9 @@ The exact password values are discovered at runtime and must not be guessed or h
 3. `VISUALPING{0000deadbeef0000}` is absent.
 4. `Frontier remaining: 0` is displayed.
 5. The number of visited resources equals the number of unique discovered in-scope URLs.
-6. The completeness message says that the frontier is empty and every discovered URL was visited.
-7. `passwords.txt` exists in the project root and contains exactly eight non-empty password lines.
+6. `Failed fetches: 0` is displayed.
+7. The completeness message says that the frontier is empty and every discovered URL was visited.
+8. `passwords.txt` exists in the project root and contains exactly eight non-empty password lines.
 
 A report that says the crawl stopped because `max-pages` was reached is **not** complete, even if it found some passwords. Increase the limit only to continue following URLs that were already discovered by fetched content.
 

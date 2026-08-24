@@ -11,6 +11,7 @@ from crawler.engine import Crawler
 def main() -> int:
     parser = argparse.ArgumentParser(description="Crawl the Visualping challenge site.")
     parser.add_argument("--max-pages", type=int, default=MAX_PAGES)
+    parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
     if args.verbose:
@@ -18,7 +19,7 @@ def main() -> int:
 
     started = time.monotonic()
     crawler = Crawler(verbose=args.verbose)
-    crawler.run(max_pages=args.max_pages)
+    crawler.run(max_pages=args.max_pages, workers=args.workers)
     elapsed = time.monotonic() - started
     passwords = crawler.results.get_all()
     with open("passwords.txt", "w", encoding="utf-8") as output:
@@ -35,6 +36,7 @@ def main() -> int:
     print(f"- Pages / resources visited: {stats['pages_visited']}")
     print(f"- Unique in-scope URLs discovered: {stats['unique_urls_discovered']}")
     print(f"- Frontier remaining: {stats['frontier_remaining']}")
+    print(f"- Failed fetches: {stats['failed_fetches']}")
     print(f"- Time taken: {elapsed:.2f} seconds")
     print("\nCompleteness justification:")
     if stats["complete"]:
