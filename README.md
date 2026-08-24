@@ -18,7 +18,7 @@ frontier-based completeness condition. It also writes the discovered values to
 `passwords.txt`.
 
 For detailed Windows setup instructions and a requirement-by-requirement
-output checklist, see [HOW_TO_RUN.md](HOW_TO_RUN.md).
+output checklist, see [docs/HOW_TO_RUN.md](docs/HOW_TO_RUN.md).
 
 ## Architecture
 

@@ -20,7 +20,7 @@ USER_AGENT = "VisualpingCrawler/1.0 (student challenge)"
 # "generated on demand" monitoring feed onto otherwise-identical URLs. Left in,
 # these mint endless new URLs and the frontier never drains. Dropping them during
 # normalization collapses those duplicates so BFS can reach an empty frontier and
-# prove completeness (see VISUALPING_CRAWLER_REQUIREMENTS.md, Task 3).
+# prove completeness (see docs/VISUALPING_CRAWLER_REQUIREMENTS.md, Task 3).
 TRACKING_PARAMS = frozenset({
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
     "ref", "v", "hl", "sid", "session", "gclid", "fbclid", "_", "page",
