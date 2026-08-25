@@ -382,3 +382,175 @@ Keep the tone professional and suitable for a hiring review.
 
 ---
 
+
+---
+
+## Prompt 21 – Debugging an Empty Frontier That Should Not Be Empty
+
+```
+After a full run the frontier is empty and I only have 4 passwords, but I know there are more. 
+
+Please help me systematically debug:
+
+1. Add temporary verbose logging that prints every newly discovered URL and its source page
+2. Dump the final visited set and the set of all discovered URLs to two text files so I can diff them
+3. Check whether any of the known password pages (analytics.js, theme-switcher.js, whiteboard-scan.png, etc.) were actually visited
+4. Suggest the most likely reasons a resource would be discovered but never fetched (normalization bug, scope check, early MAX_PAGES cut-off, etc.)
+
+Do not rewrite the whole crawler – just give me the minimal debugging additions and the analysis steps.
+```
+
+---
+
+## Prompt 22 – Hardening Against Unexpected Content Types
+
+```
+I want the crawler to be more robust when the server returns unusual Content-Types (application/octet-stream, text/plain for JavaScript, image/svg+xml, etc.).
+
+Update the decision logic inside _process_response so that:
+
+- Any response that looks like text (even if the Content-Type is wrong) still goes through text extraction + discovery
+- Any response that looks like an image still goes through the image processor
+- Binary responses that are neither text nor image still receive the multi-encoding byte scan
+- The crawler never crashes on an unknown Content-Type
+
+Keep the changes small and well-commented.
+```
+
+---
+
+## Prompt 23 – Concurrent Fetching with a Thread Pool
+
+```
+The current engine fetches one URL at a time. On this particular site a modest amount of concurrency is safe and speeds things up.
+
+Modify the engine so that it can optionally fetch a small batch of URLs concurrently using ThreadPoolExecutor (default workers=4, configurable).
+
+Requirements:
+- The frontier and visited sets must remain thread-safe (or be updated only from the main thread)
+- MAX_PAGES limit must still be respected
+- Failed fetches must still be recorded
+- The public API of Crawler.run() should stay almost the same (just add a workers parameter)
+
+Show the exact code changes needed.
+```
+
+---
+
+## Prompt 24 – Detecting the Real Credential Leak Automatically
+
+```
+One password appears in this context:
+
+// FIXME(ops): temporary admin password for the provisioning API —
+var ADMIN_PASSWORD = 'VISUALPING{349a583fba34c301}';
+
+I need the crawler to automatically flag any password that appears near the words “admin_password”, “FIXME”, “TODO: rotate”, or “temporary” so I can answer the form question confidently.
+
+Add a lightweight context check (look at ±150 characters around each match) and collect the flagged passwords in a separate set. At the end of the run print them under a clear heading “Potential real-world credential leaks”.
+```
+
+---
+
+## Prompt 25 – JPEG COM Segment Extraction
+
+```
+Some of the .jpg files contain the 16 hex characters inside a JPEG COM (comment) marker, without the VISUALPING{} wrapper.
+
+Write a small helper that:
+
+1. Scans the raw bytes for the JPEG COM marker (0xFF 0xFE)
+2. Reads the length-prefixed comment
+3. If the comment is exactly 16 hex characters, wraps it as VISUALPING{...} and returns it
+
+Integrate this helper into the image processor (or the byte scanner) so these passwords are recovered automatically.
+```
+
+---
+
+## Prompt 26 – Making the Geo Helper Production-Ready
+
+```
+Improve scripts/fetch_geo.py:
+
+- Accept --proxy and --url
+- Print the HTTP status and the region message the server returns
+- Clearly say whether the page was unlocked or still blocked
+- Extract and print any passwords found (using the same extractors as the main crawler)
+- Return non-zero exit codes for “still blocked” vs “request failed”
+- Add a short usage example in the docstring showing both HTTP and socks5h proxies
+```
+
+---
+
+## Prompt 27 – Full End-to-End Test of Completeness
+
+```
+I want a single integration-style test (or a documented manual procedure) that proves the completeness predicate works on a small controlled set of pages.
+
+Create a tiny fixture site (or mock responses) with:
+- a homepage that links to page A and page B
+- page A that links back to the homepage and to an image
+- page B that contains one password
+
+Then assert that after the crawler finishes:
+- frontier is empty
+- both pages and the image were visited
+- the password was found
+- the complete flag is True
+```
+
+---
+
+## Prompt 28 – README Section for the Google Form
+
+```
+Write a polished “Approach / notes” paragraph (150–250 words) that I can paste directly into the Google Form.
+
+It must cover:
+- BFS + frontier + visited design
+- why tracking parameters are stripped
+- the five extraction strategies
+- how the German geo-restricted page was handled
+- the exact completeness condition used
+
+Tone should be professional and confident, suitable for a hiring manager.
+```
+
+---
+
+## Prompt 29 – Final Pre-Submission Checklist
+
+```
+Generate a strict pre-submission checklist that I can go through item by item before I click submit on the Google Form.
+
+Include checks for:
+- passwords.txt content
+- code link accessibility
+- README quality
+- tests passing
+- no secrets accidentally committed
+- completeness statement present
+- genuine-leak answer ready
+- AI session log (optional) prepared
+
+Format it as a Markdown checklist I can tick off.
+```
+
+---
+
+## Prompt 30 – One-Page Architecture Summary for Reviewers
+
+```
+Create a single-page architecture summary (can be used as a section in the README or as a separate ARCHITECTURE.md) that a reviewer can read in under two minutes.
+
+It should contain:
+- a short textual description of the data flow
+- a simple ASCII or Mermaid diagram of the main components
+- the completeness predicate
+- a table of the extraction strategies and what each one is good for
+- a note about the geo-restricted resource
+
+Keep it dense but readable.
+```
+---
