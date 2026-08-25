@@ -1,5 +1,6 @@
 """Configuration for the Visualping crawler challenge."""
 
+import os
 import re
 
 
@@ -13,6 +14,19 @@ EXAMPLE_PASSWORD = "VISUALPING{0000deadbeef0000}"
 MAX_PAGES = 2000
 REQUEST_TIMEOUT = 10
 USER_AGENT = "VisualpingCrawler/1.0 (student challenge)"
+
+# Optional outbound proxy for geo-restricted resources. One page,
+# ``/status/eu-region/``, is only served to a Germany source IP; the server
+# geolocates the real TCP source address and ignores forwarding headers
+# (X-Forwarded-For, CF-IPCountry, etc.), so the only way in is to originate the
+# request from a genuine German exit. Point this at a German HTTP/SOCKS proxy or
+# VPN exit to reach it. Set via ``--proxy`` or the ``VP_PROXY`` environment
+# variable. Examples:
+#   http://user:pass@de-host:8080
+#   socks5h://127.0.0.1:1080   (requires ``pip install requests[socks]``)
+# ``socks5h`` (vs ``socks5``) resolves DNS through the proxy, which is usually
+# what you want for a VPN exit. Leave as None to fetch directly.
+PROXY = os.environ.get("VP_PROXY") or None
 
 # Query parameters that never identify a distinct resource on this site.
 # The challenge sprinkles analytics/campaign tags (``utm_*``, ``ref``),

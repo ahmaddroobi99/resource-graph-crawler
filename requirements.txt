@@ -3,6 +3,11 @@ beautifulsoup4>=4.12
 lxml>=4.9
 pytest>=7.4
 
+# Needed only for a SOCKS proxy exit (``--proxy socks5h://...``), e.g. routing
+# through a Germany VPN to reach the geo-locked /status/eu-region/ page.
+# HTTP/HTTPS proxies work without this. Equivalent to ``pip install requests[socks]``.
+PySocks>=1.7.1
+
 # Optional: OCR for passwords rendered only as image pixels (e.g. the
 # whiteboard scan). These Python packages also need the Tesseract engine on the
 # system, e.g. `winget install UB-Mannheim.TesseractOCR` on Windows. The crawler

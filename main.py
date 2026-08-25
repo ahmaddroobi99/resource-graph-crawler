@@ -4,8 +4,9 @@ import argparse
 import logging
 import time
 
-from config import MAX_PAGES
+from config import MAX_PAGES, PROXY
 from crawler.engine import Crawler
+from crawler.fetcher import configure_proxy
 
 
 def main() -> int:
@@ -13,9 +14,17 @@ def main() -> int:
     parser.add_argument("--max-pages", type=int, default=MAX_PAGES)
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--proxy", default=PROXY,
+        help="Route requests through a proxy / German VPN exit so the geo-locked "
+             "/status/eu-region/ page is reachable, e.g. "
+             "http://de-host:8080 or socks5h://127.0.0.1:1080",
+    )
     args = parser.parse_args()
     if args.verbose:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
+    if args.proxy:
+        configure_proxy(args.proxy)
 
     started = time.monotonic()
     crawler = Crawler(verbose=args.verbose)
