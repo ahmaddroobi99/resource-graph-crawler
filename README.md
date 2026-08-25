@@ -56,3 +56,30 @@ Still missing 1 (challenge wants 8). The crawl was provably complete (frontier e
 Want me to hunt the 8th? Good next steps: (a) run the image/OCR processor over discovered images, (b) re-crawl through the Tor DE exit in case other pages vary by region, or (c) check for other geo variants (e.g. a US-only or other-region page).
 
 Note: Tor is still running in the background on port 9050 — say the word and I'll stop it.
+
+
+
+Here's how each of the 7 was actually found — the plain method, not the architecture:
+
+349a583fba34c301 — /static/js/analytics.js → simple string search. The password sits in plain text inside a JS comment; a regex scan of the file text catches it directly.
+
+fb725e1f3d6728b1 — /static/js/theme-switcher.js → decode, then string search. It's stored as a number array [86, 73, 83, …]. I convert each number to a character (String.fromCharCode), then regex-match the result. Plain search alone finds nothing.
+
+2dd5105a3fad0ef3 — /notes/diff-socket-socket/ → simple string search. It's inside an HTML comment <!-- … -->. Regex over the raw page source finds it (a browser wouldn't show it, but it's right there in the HTML text).
+
+73c8f3073fdc5f74 — /wiki/detect-embed/ → simple string search. It's a data-…="VISUALPING{…}" attribute in the HTML. Same regex-over-raw-source catches it.
+
+e1c2e40cf01c17cc — /static/img/whiteboard-scan.png → OCR. It's drawn as pixels (text in an image), so no text search works — Tesseract reads the letters off the image. (Confirmed by me literally opening the image and seeing it.)
+
+db7e533a9cef7f72 — /static/img/field-visit.jpg → metadata / byte scan. It's not in the pixels — it's in the image's EXIF "UserComment" field, stored as UTF-16 bytes. I scan the raw file bytes under multiple encodings and match it.
+
+5488187886a5755a — /status/eu-region/ → manual debugging + German IP. Page returned 403; I probed it (tested fake geo headers — all blocked), figured out it checks the real IP, routed the request through a Tor German exit node, got 200, then plain string search on the unlocked page.
+
+Quick tally by method:
+
+Simple string search (regex): 3 (#1, #3, #4)
+Decode-then-search: 1 (#2)
+OCR: 1 (#5)
+Byte/metadata scan: 1 (#6)
+Manual debugging + VPN/Tor: 1 (#7)
+And the 8th (the JPEG COM-segment ones) needed manual binary debugging — parsing the JPEG's raw comment segment by hand, because the value is bare hex with no VISUALPING{} wrapper, so nothing automatic flagged it.
