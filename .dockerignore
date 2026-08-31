@@ -1,0 +1,15 @@
+.git
+.venv
+venv
+__pycache__
+.pytest_cache
+.coverage
+htmlcov
+docs
+imaginary_qunatum_hypothesis
+output_arch
+print_source_code
+promt_eng
+project_clean_dump_important.txt
+*.log
+.env
