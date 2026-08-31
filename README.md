@@ -87,3 +87,8 @@ HTTP facade.
 
 The challenge target (`54.214.7.161`) may be offline. The service stays up and
 reports `degraded` from `/ready` plus a structured probe error from crawl jobs.
+
+---
+
+Account grouping: research first, undergraduate last — see the [profile README](https://github.com/ahmaddroobi99/ahmaddroobi99). GitHub cannot custom-sort the Repositories tab.
+
