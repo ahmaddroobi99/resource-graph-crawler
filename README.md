@@ -77,9 +77,18 @@ python main.py
 # Verbose progress (per-page counters)
 python main.py --verbose
 
+# Desktop GUI (same engine, no extra installs — Tkinter ships with Python)
+python gui.py
+
 # Run the test suite
 pytest -v
 ```
+
+**GUI** ([gui.py](gui.py)). A Tkinter front-end over the same crawler engine: edit the base URL,
+credentials, max-pages, workers, and proxy; press **Run** to watch live counters (visited / frontier /
+results / failed / elapsed) and streaming log output; browse recovered passwords and flagged genuine
+leaks; **Stop** interrupts after the current batch; **Save passwords…** writes them to a file of your
+choice. It reports the same provable completeness verdict as the CLI.
 
 **Optional OCR** (for passwords rendered as image pixels). Needs the Tesseract engine plus the Python
 packages in `requirements.txt`:
