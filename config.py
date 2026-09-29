@@ -1,40 +1,53 @@
-"""Configuration for the Visualping crawler challenge."""
+"""Configuration for the resource-graph crawler.
+
+Challenge defaults remain for local/CLI compatibility. Production deployments
+should override via environment variables (see `.env.example`).
+"""
+
+from __future__ import annotations
 
 import os
 import re
 
 
-BASE_URL = "http://54.214.7.161/"
-ALLOWED_HOST = "54.214.7.161"
-USERNAME = "ahmad.droobi2"
-PASSWORD = "2dd4b97903ace571f147"
+def _env(name: str, default: str | None = None) -> str | None:
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    return value.strip()
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = _env(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+BASE_URL = _env("RGC_BASE_URL", "http://54.214.7.161/") or "http://54.214.7.161/"
+ALLOWED_HOST = _env("RGC_ALLOWED_HOST", "54.214.7.161") or "54.214.7.161"
+USERNAME = _env("RGC_USERNAME", "ahmad.droobi2") or "ahmad.droobi2"
+PASSWORD = _env("RGC_PASSWORD", "2dd4b97903ace571f147") or "2dd4b97903ace571f147"
 PASSWORD_REGEX = r"VISUALPING\{[0-9a-fA-F]{16}\}"
 COMPILED_PASSWORD_RE = re.compile(PASSWORD_REGEX)
 EXAMPLE_PASSWORD = "VISUALPING{0000deadbeef0000}"
-MAX_PAGES = 2000
-REQUEST_TIMEOUT = 10
-USER_AGENT = "VisualpingCrawler/1.0 (student challenge)"
+MAX_PAGES = _env_int("RGC_MAX_PAGES", 2000)
+REQUEST_TIMEOUT = _env_int("RGC_REQUEST_TIMEOUT", 10)
+USER_AGENT = _env("RGC_USER_AGENT", "ResourceGraphCrawler/1.1") or "ResourceGraphCrawler/1.1"
 
-# Optional outbound proxy for geo-restricted resources. One page,
-# ``/status/eu-region/``, is only served to a Germany source IP; the server
-# geolocates the real TCP source address and ignores forwarding headers
-# (X-Forwarded-For, CF-IPCountry, etc.), so the only way in is to originate the
-# request from a genuine German exit. Point this at a German HTTP/SOCKS proxy or
-# VPN exit to reach it. Set via ``--proxy`` or the ``VP_PROXY`` environment
-# variable. Examples:
-#   http://user:pass@de-host:8080
-#   socks5h://127.0.0.1:1080   (requires ``pip install requests[socks]``)
-# ``socks5h`` (vs ``socks5``) resolves DNS through the proxy, which is usually
-# what you want for a VPN exit. Leave as None to fetch directly.
-PROXY = os.environ.get("VP_PROXY") or None
+# Optional outbound proxy for geo-restricted resources.
+PROXY = _env("VP_PROXY") or _env("RGC_PROXY") or None
 
-# Query parameters that never identify a distinct resource on this site.
-# The challenge sprinkles analytics/campaign tags (``utm_*``, ``ref``),
-# cache-busting versions (``v``, ``hl``) and an unbounded ``page`` cursor for the
-# "generated on demand" monitoring feed onto otherwise-identical URLs. Left in,
-# these mint endless new URLs and the frontier never drains. Dropping them during
-# normalization collapses those duplicates so BFS can reach an empty frontier and
-# prove completeness (see docs/VISUALPING_CRAWLER_REQUIREMENTS.md, Task 3).
+# Serverless / public API safety caps. Full crawls belong in Docker/CLI.
+API_MAX_PAGES = _env_int("RGC_API_MAX_PAGES", 12)
+API_MAX_WORKERS = _env_int("RGC_API_MAX_WORKERS", 4)
+API_KEY = _env("RGC_API_KEY")
+SERVICE_NAME = _env("RGC_SERVICE_NAME", "resource-graph-crawler") or "resource-graph-crawler"
+SERVICE_ENV = _env("RGC_ENV") or _env("VERCEL_ENV") or "development"
+
 TRACKING_PARAMS = frozenset({
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
     "ref", "v", "hl", "sid", "session", "gclid", "fbclid", "_", "page",
