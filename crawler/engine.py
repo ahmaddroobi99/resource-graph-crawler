@@ -22,7 +22,8 @@ LOGGER = logging.getLogger(__name__)
 class Crawler:
     """Traverse discovered same-host resources until the frontier is empty."""
 
-    def __init__(self, base_url: str = BASE_URL, verbose: bool = False) -> None:
+    def __init__(self, base_url: str = BASE_URL, verbose: bool = False,
+                 stop_event=None) -> None:
         self.base_url = normalize(base_url)
         self.visited = Visited()
         self.frontier = Frontier(self.visited)
@@ -32,14 +33,21 @@ class Crawler:
         self.failed: set[str] = set()
         self.pages_fetched = 0
         self.verbose = verbose
+        # Optional cooperative stop switch (e.g. a threading.Event). When set,
+        # the BFS loop finishes the current batch and returns. Defaults to None
+        # so command-line runs are entirely unaffected.
+        self.stop_event = stop_event
         self.frontier.add(self.base_url)
         self.discovered.add(self.base_url)
+
+    def _should_stop(self) -> bool:
+        return self.stop_event is not None and self.stop_event.is_set()
 
     def run(self, max_pages: int | None = None, workers: int = 1) -> Results:
         """Run BFS in bounded fetch batches, returning body-derived results."""
         page_limit = MAX_PAGES if max_pages is None else max_pages
         workers = max(1, workers)
-        while not self.frontier.empty and self.pages_fetched < page_limit:
+        while not self.frontier.empty and self.pages_fetched < page_limit and not self._should_stop():
             batch: list[str] = []
             while not self.frontier.empty and len(batch) < workers and self.pages_fetched + len(batch) < page_limit:
                 url = self.frontier.get()
