@@ -8,8 +8,8 @@ rendered as pixels (e.g. a scanned whiteboard).
 import os
 import shutil
 
-from config import COMPILED_PASSWORD_RE
-from crawler.extractor import extract_passwords, extract_passwords_from_bytes
+import config
+from crawler.extractor import active_pattern, extract_passwords, extract_passwords_from_bytes
 
 try:
     from io import BytesIO
@@ -42,10 +42,18 @@ def _locate_tesseract() -> bool:
 
 _TESSERACT_READY = _locate_tesseract()
 
-# Constrain OCR to the exact password alphabet so lookalikes (l/1, o/0) cannot
-# turn a valid hex password into a rejected non-hex string. --psm 7 treats the
-# image as a single text line.
-_OCR_CONFIG = "--psm 7 -c tessedit_char_whitelist=VISUALPING{}0123456789abcdefABCDEF"
+# For the default password pattern, constrain OCR to the exact hex alphabet so
+# lookalikes (l/1, o/0) cannot turn a valid password into a rejected string.
+# A custom search pattern has an unknown alphabet, so fall back to unconstrained
+# single-line OCR. --psm 7 treats the image as a single text line.
+_DEFAULT_OCR_CONFIG = "--psm 7 -c tessedit_char_whitelist=VISUALPING{}0123456789abcdefABCDEF"
+
+
+def _ocr_config() -> str:
+    """OCR flags for the active pattern (hex whitelist only for the default)."""
+    if active_pattern().pattern == config.PASSWORD_REGEX:
+        return _DEFAULT_OCR_CONFIG
+    return "--psm 7"
 
 
 def process_image(url: str, content: bytes) -> set[str]:
@@ -53,16 +61,17 @@ def process_image(url: str, content: bytes) -> set[str]:
     passwords = extract_passwords_from_bytes(content)
     if passwords or not _TESSERACT_READY:
         return passwords
+    ocr_config = _ocr_config()
     try:
-        text = pytesseract.image_to_string(Image.open(BytesIO(content)), config=_OCR_CONFIG)
+        text = pytesseract.image_to_string(Image.open(BytesIO(content)), config=ocr_config)
     except Exception:  # A missing engine or unreadable image must not crash the crawl.
         return set()
-    if not COMPILED_PASSWORD_RE.search(text):
+    if not active_pattern().search(text):
         # Retry once at 2x scale, which helps Tesseract on small renderings.
         try:
             image = Image.open(BytesIO(content)).convert("L")
             image = image.resize((image.width * 2, image.height * 2))
-            text += "\n" + pytesseract.image_to_string(image, config=_OCR_CONFIG)
+            text += "\n" + pytesseract.image_to_string(image, config=ocr_config)
         except Exception:
             pass
     return extract_passwords(text)

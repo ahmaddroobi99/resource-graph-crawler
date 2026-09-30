@@ -34,6 +34,12 @@ PASSWORD = _env("RGC_PASSWORD", "2dd4b97903ace571f147") or "2dd4b97903ace571f147
 PASSWORD_REGEX = r"VISUALPING\{[0-9a-fA-F]{16}\}"
 COMPILED_PASSWORD_RE = re.compile(PASSWORD_REGEX)
 EXAMPLE_PASSWORD = "VISUALPING{0000deadbeef0000}"
+
+# The active search pattern. Defaults to the challenge password shape but can be
+# overridden (RGC_PATTERN env var, CLI ``--pattern``, or the GUI "Search pattern"
+# field) so the crawler can hunt for any regex, not just VISUALPING{...}.
+PATTERN_REGEX = _env("RGC_PATTERN", PASSWORD_REGEX) or PASSWORD_REGEX
+COMPILED_PATTERN_RE = re.compile(PATTERN_REGEX)
 MAX_PAGES = _env_int("RGC_MAX_PAGES", 2000)
 REQUEST_TIMEOUT = _env_int("RGC_REQUEST_TIMEOUT", 10)
 USER_AGENT = _env("RGC_USER_AGENT", "ResourceGraphCrawler/1.1") or "ResourceGraphCrawler/1.1"

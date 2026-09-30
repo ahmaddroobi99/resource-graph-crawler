@@ -9,6 +9,7 @@ Run with:  python gui.py     (Tkinter ships with CPython; no extra installs)
 
 import logging
 import queue
+import re
 import threading
 import time
 import tkinter as tk
@@ -16,6 +17,7 @@ from tkinter import filedialog, messagebox, ttk
 from urllib.parse import urlsplit
 
 import config
+from crawler import extractor as extractor_mod
 from crawler import fetcher as fetcher_mod
 from crawler import url_utils as url_utils_mod
 from crawler.engine import Crawler
@@ -66,11 +68,11 @@ class CrawlerGUI(ttk.Frame):
 
         head = ttk.Frame(self)
         head.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        ttk.Label(head, text="Visualping Crawler",
+        ttk.Label(head, text="Resource-Graph Crawler",
                   font=("Segoe UI", 16, "bold")).pack(anchor="w")
         ttk.Label(head, foreground="#666",
-                  text="Authenticated BFS crawl \u2192 recover every "
-                       "VISUALPING{...} password").pack(anchor="w")
+                  text="Authenticated BFS crawl \u2192 recover every match of "
+                       "your search pattern").pack(anchor="w")
 
         self._build_settings()
         self._build_controls()
@@ -89,6 +91,7 @@ class CrawlerGUI(ttk.Frame):
         self.var_proxy = tk.StringVar(value=config.PROXY or "")
         self.var_max = tk.StringVar(value=str(config.MAX_PAGES))
         self.var_workers = tk.StringVar(value="4")
+        self.var_pattern = tk.StringVar(value=config.PATTERN_REGEX)
         self.var_verbose = tk.BooleanVar(value=False)
 
         def row(r, label, var, col=0, show=None, width=28):
@@ -105,13 +108,19 @@ class CrawlerGUI(ttk.Frame):
         row(2, "Max pages", self.var_max, col=0, width=10)
         row(2, "Workers", self.var_workers, col=2, width=10)
 
+        ttk.Label(box, text="Search pattern").grid(row=3, column=0, sticky="w",
+                                                   padx=(0, 6), pady=3)
+        pat = ttk.Entry(box, textvariable=self.var_pattern,
+                        font=("Consolas", 9))
+        pat.grid(row=3, column=1, columnspan=3, sticky="ew", padx=(0, 14), pady=3)
+
         ttk.Checkbutton(box, text="Verbose logging",
                         variable=self.var_verbose).grid(
-            row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+            row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
         ttk.Label(box, foreground="#888", font=("Segoe UI", 8),
-                  text="Proxy reaches the DE geo-locked page, e.g. "
-                       "socks5h://127.0.0.1:1080").grid(
-            row=3, column=2, columnspan=2, sticky="w", pady=(6, 0))
+                  text="Any regex \u2014 e.g. an email or API-key pattern; proxy "
+                       "reaches the DE geo-locked page (socks5h://\u2026)").grid(
+            row=4, column=2, columnspan=2, sticky="w", pady=(6, 0))
 
     def _build_controls(self) -> None:
         bar = ttk.Frame(self)
@@ -148,7 +157,7 @@ class CrawlerGUI(ttk.Frame):
         pane.add(left, weight=3)
 
         # right: results
-        right = ttk.LabelFrame(pane, text="Passwords found", padding=6)
+        right = ttk.LabelFrame(pane, text="Matches found", padding=6)
         right.rowconfigure(1, weight=1)
         right.columnconfigure(0, weight=1)
         self.count_label = ttk.Label(right, text="0 found",
@@ -235,6 +244,13 @@ class CrawlerGUI(ttk.Frame):
             raise ValueError("Max pages and Workers must be integers.")
         if max_pages < 1 or workers < 1:
             raise ValueError("Max pages and Workers must be at least 1.")
+        pattern = self.var_pattern.get().strip()
+        if not pattern:
+            raise ValueError("Search pattern is required.")
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"Invalid search pattern (regex): {exc}")
         return {
             "url": url,
             "host": host,
@@ -243,6 +259,7 @@ class CrawlerGUI(ttk.Frame):
             "proxy": self.var_proxy.get().strip() or None,
             "max_pages": max_pages,
             "workers": workers,
+            "pattern": pattern,
             "verbose": self.var_verbose.get(),
         }
 
@@ -260,11 +277,15 @@ class CrawlerGUI(ttk.Frame):
         fetcher_mod.USERNAME = s["username"]
         fetcher_mod.PASSWORD = s["password"]
         url_utils_mod.ALLOWED_HOST = s["host"]
+        # Exclude the documented placeholder only for the default password shape.
+        example = config.EXAMPLE_PASSWORD if s["pattern"] == config.PASSWORD_REGEX else ""
+        extractor_mod.configure_pattern(s["pattern"], example)
         configure_proxy(s["proxy"])
 
         self.msg_queue.put(("log", f"Starting crawl at {s['url']} "
                                    f"(host={s['host']}, workers={s['workers']}, "
                                    f"max_pages={s['max_pages']})"))
+        self.msg_queue.put(("log", f"Search pattern: {s['pattern']}"))
         try:
             self.crawler = Crawler(base_url=s["url"], verbose=s["verbose"],
                                    stop_event=self.stop_event)
@@ -340,7 +361,7 @@ class CrawlerGUI(ttk.Frame):
             verdict = ("Incomplete: stopped before proving completeness "
                        "(max-pages hit or failed fetches).")
         self._append_log("\n=== Done ===")
-        self._append_log(f"Passwords found: {len(passwords)}")
+        self._append_log(f"Matches found: {len(passwords)}")
         self._append_log(verdict)
         self.status.set(verdict)
 
@@ -393,7 +414,7 @@ class CrawlerGUI(ttk.Frame):
 
 def main() -> int:
     root = tk.Tk()
-    root.title("Visualping Crawler")
+    root.title("Resource-Graph Crawler")
     root.geometry("980x680")
     root.minsize(820, 560)
     try:

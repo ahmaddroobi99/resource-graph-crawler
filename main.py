@@ -4,16 +4,23 @@ import argparse
 import logging
 import time
 
-from config import MAX_PAGES, PROXY
+from config import EXAMPLE_PASSWORD, MAX_PAGES, PATTERN_REGEX, PASSWORD_REGEX, PROXY
 from crawler.engine import Crawler
+from crawler.extractor import configure_pattern
 from crawler.fetcher import configure_proxy
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Crawl the Visualping challenge site.")
+    parser = argparse.ArgumentParser(description="Crawl the challenge site for pattern matches.")
     parser.add_argument("--max-pages", type=int, default=MAX_PAGES)
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--pattern", default=PATTERN_REGEX,
+        help="Regex to search every fetched resource for (default: the "
+             "VISUALPING password shape). Any regex works, e.g. "
+             r"'[A-Za-z0-9._%%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' to hunt emails.",
+    )
     parser.add_argument(
         "--proxy", default=PROXY,
         help="Route requests through a proxy / German VPN exit so the geo-locked "
@@ -25,6 +32,10 @@ def main() -> int:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
     if args.proxy:
         configure_proxy(args.proxy)
+    # Exclude the documented placeholder only when using the default password
+    # pattern; a custom pattern has no such example.
+    example = EXAMPLE_PASSWORD if args.pattern == PASSWORD_REGEX else ""
+    configure_pattern(args.pattern, example)
 
     started = time.monotonic()
     crawler = Crawler(verbose=args.verbose)
@@ -37,8 +48,9 @@ def main() -> int:
             output.write("\n")
 
     stats = crawler.get_stats()
-    print("=== Visualping Crawler Results ===")
-    print(f"Passwords found ({len(passwords)}):")
+    print("=== Resource-Graph Crawler Results ===")
+    print(f"Pattern: {args.pattern}")
+    print(f"Matches found ({len(passwords)}):")
     for password in passwords:
         print(password)
     print("\nStats:")
