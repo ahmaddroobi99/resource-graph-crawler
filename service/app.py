@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import logging
+import re
+import sqlite3
 import time
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -17,6 +23,8 @@ from config import (
     API_MAX_PAGES,
     API_MAX_WORKERS,
     BASE_URL,
+    DOCUMENT_API_KEY,
+    IS_SERVERLESS,
     REQUEST_TIMEOUT,
     SERVICE_ENV,
     SERVICE_NAME,
@@ -26,15 +34,100 @@ from crawler.engine import Crawler
 from crawler.fetcher import fetch
 from service.jobs import STORE, CrawlJob
 from service.ui import index_html
+from service.document_ui import document_html
+from service import document_api
 
 LOGGER = logging.getLogger("rgc.service")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    if not IS_SERVERLESS and DOCUMENT_API_KEY:
+        document_api.start_worker()
+    try:
+        yield
+    finally:
+        if not IS_SERVERLESS and DOCUMENT_API_KEY:
+            document_api.stop_worker()
+
 
 app = FastAPI(
     title="Resource Graph Crawler",
     description="Production control plane for the Visualping resource-graph crawler.",
     version="1.1.0",
+    lifespan=lifespan,
 )
+app.include_router(document_api.router)
+
+
+def _error_body(code: str, message: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {"error": {"code": code, "message": message, "details": details or {}}}
+
+
+@app.middleware("http")
+async def request_logging(request: Request, call_next):
+    supplied_id = request.headers.get("X-Request-ID", "")
+    request_id = supplied_id if re.fullmatch(r"[A-Za-z0-9._-]{1,64}", supplied_id) else uuid.uuid4().hex
+    request.state.request_id = request_id
+    segments = request.url.path.strip("/").split("/")
+    document_id = segments[3] if len(segments) > 3 and segments[:3] == ["api", "v1", "documents"] else "-"
+    started = time.monotonic()
+    response = await call_next(request)
+    status_code = response.status_code
+    error_codes = {400: "INVALID_REQUEST", 401: "UNAUTHORIZED", 403: "FORBIDDEN",
+                   404: "NOT_FOUND", 409: "INVALID_REQUEST", 413: "FILE_TOO_LARGE",
+                   415: "UNSUPPORTED_FILE_TYPE", 422: "INVALID_REQUEST",
+                   500: "INTERNAL_ERROR", 503: "SERVICE_UNAVAILABLE", 504: "TIMEOUT"}
+    error_code = response.headers.get(
+        "X-Error-Code", error_codes.get(status_code, "-") if status_code >= 400 else "-"
+    )
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    LOGGER.info(
+        "request_id=%s document_id=%s operation=%s timestamp=%s duration_ms=%d status=%d error_code=%s",
+        request_id, document_id, f"{request.method} {request.url.path}", timestamp,
+        int((time.monotonic() - started) * 1000), status_code, error_code,
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+@app.exception_handler(HTTPException)
+async def handle_http_exception(_request: Request, exc: HTTPException) -> JSONResponse:
+    detail = exc.detail
+    if isinstance(detail, dict) and {"code", "message"}.issubset(detail):
+        body = _error_body(str(detail["code"]), str(detail["message"]), detail.get("details"))
+    else:
+        codes = {
+            400: "INVALID_REQUEST", 401: "UNAUTHORIZED", 403: "FORBIDDEN",
+            404: "NOT_FOUND", 413: "FILE_TOO_LARGE", 415: "UNSUPPORTED_FILE_TYPE",
+            422: "INVALID_REQUEST", 500: "INTERNAL_ERROR", 503: "SERVICE_UNAVAILABLE",
+            504: "TIMEOUT",
+        }
+        body = _error_body(codes.get(exc.status_code, "INTERNAL_ERROR"), str(detail))
+    headers = dict(exc.headers or {})
+    headers["X-Error-Code"] = body["error"]["code"]
+    return JSONResponse(body, status_code=exc.status_code, headers=headers)
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_validation_error(_request: Request, _exc: RequestValidationError) -> JSONResponse:
+    return JSONResponse(_error_body("INVALID_REQUEST", "Request parameters are invalid."),
+                        status_code=400, headers={"X-Error-Code": "INVALID_REQUEST"})
+
+
+@app.exception_handler(sqlite3.Error)
+async def handle_database_error(_request: Request, exc: sqlite3.Error) -> JSONResponse:
+    LOGGER.error("Document database operation failed: %s", type(exc).__name__)
+    return JSONResponse(_error_body("DATABASE_ERROR", "The document database operation failed."),
+                        status_code=500, headers={"X-Error-Code": "DATABASE_ERROR"})
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_error(_request: Request, exc: Exception) -> JSONResponse:
+    LOGGER.exception("Unhandled API error", exc_info=exc)
+    return JSONResponse(_error_body("INTERNAL_ERROR", "An unexpected server error occurred."),
+                        status_code=500, headers={"X-Error-Code": "INTERNAL_ERROR"})
 
 app.add_middleware(
     CORSMiddleware,
@@ -109,14 +202,29 @@ def _run_crawl(job: CrawlJob) -> CrawlJob:
     except Exception as exc:
         LOGGER.exception("Crawl job %s failed", job.id)
         job.status = "failed"
-        job.error = str(exc)
+        job.error = "Crawl job failed unexpectedly."
     job.finished_at = time.time()
     return job
 
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
-    return HTMLResponse(index_html())
+    page = index_html()
+    link = '<a href="/documents" style="position:fixed;right:18px;bottom:18px;padding:12px 16px;background:#3ee0b0;color:#071018;border-radius:5px;font:600 14px sans-serif;text-decoration:none">Document Workbench</a>'
+    return HTMLResponse(page.replace("</body>", f"{link}</body>", 1))
+
+
+@app.get("/documents", response_class=HTMLResponse)
+def documents_ui() -> HTMLResponse:
+    return HTMLResponse(document_html())
+
+
+@app.get("/openapi.yaml")
+def openapi_yaml():
+    from fastapi.responses import FileResponse
+    from pathlib import Path
+    return FileResponse(Path(__file__).resolve().parent.parent / "openapi.yaml",
+                        media_type="application/yaml", filename="openapi.yaml")
 
 
 @app.get("/health")

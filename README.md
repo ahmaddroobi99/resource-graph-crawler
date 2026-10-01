@@ -1,17 +1,21 @@
 # resource-graph-crawler
 
-An authenticated, breadth-first **resource-graph crawler**. Fetched URLs are nodes;
-references discovered in HTML, scripts, CSS, comments, and binary payloads are edges.
-It starts from one seed, stays on the same host (no URL guessing), and scans every
-fetched resource for a **configurable search pattern**. When the frontier drains it
-prints a **provable** completeness statement.
+Two workflows live in this repository. The original authenticated, breadth-first
+**resource-graph crawler** follows discovered same-host resources and scans their
+content for a configurable pattern. The **Document Workbench** privately processes
+documents a user uploads: asynchronous OCR, structured page results, evidence-backed
+entities, and full-text search. The workflows share the FastAPI service shell, but keep
+their processing state and storage separate.
 
-The pattern defaults to the Visualping challenge password `VISUALPING{[0-9a-fA-F]{16}}`,
-but it is **not hard-coded** — point it at any regex (emails, API keys, tokens, secrets)
-and the same engine hunts for that instead. One engine, three front-ends: a **CLI**, a
-**desktop GUI**, and a production **HTTP API**.
+The crawler pattern defaults to `VISUALPING{[0-9a-fA-F]{16}}` and can be changed to a
+different regex. The document path accepts PDF, PNG, and JPEG and returns source page
+evidence for extracted text. Document processing runs locally or in Docker with
+persistent storage; it is intentionally disabled on Vercel.
 
-![System architecture](docs/images/architecture.png)
+![End-to-end architecture for the crawler and asynchronous document workflow](docs/images/end-to-end-architecture.svg)
+
+*The architecture separates crawl discovery from document OCR while showing how both
+workflows connect to the service, persistence, and user-facing results.*
 
 ---
 
@@ -177,8 +181,46 @@ an empty frontier reachable and the completeness claim meaningful rather than a 
 python -m pytest -q
 ```
 
-17 unit tests cover URL normalization/scope, extraction (plain / encoded / multi-encoding),
-discovery, and the BFS frontier. (The API tests additionally require `fastapi`.)
+The suite covers URL normalization/scope, extraction, discovery, crawler API behavior,
+document validation, asynchronous processing, evidence, and search.
+
+---
+
+## Document Workbench
+
+The local/Docker FastAPI service also accepts user-submitted PDF, PNG, and JPEG documents
+for asynchronous OCR, evidence-backed entity extraction, and full-text search. Open
+`http://127.0.0.1:8000/documents` after starting the service. Configure a strong
+`RGC_DOCUMENT_API_KEY`; the browser UI asks for it per session and does not persist it.
+The checked-in contract is [`openapi.yaml`](openapi.yaml), served at `/openapi.yaml`.
+
+```powershell
+python -m pip install -r requirements-documents.txt
+$env:RGC_DOCUMENT_API_KEY = "replace-with-a-long-random-key"
+uvicorn service.app:app --reload --port 8000
+```
+
+Docker installs Tesseract and persists SQLite plus original uploads in the `document_data`
+volume. Document processing is disabled on Vercel; the existing crawler routes remain
+available there. Entity extraction is heuristic and evidence-linked, not a candidate
+ranking or hiring-decision system. See
+[`docs/ASYNC_DOCUMENT_INTELLIGENCE.md`](docs/ASYNC_DOCUMENT_INTELLIGENCE.md) for limits,
+retries, recovery, security, and known gaps.
+
+### Illustrated workflow
+
+The animation walks through the implemented upload contract and UI path: the API accepts
+and persists the file, returns a queued job, a background worker reports processing
+stages, page OCR evidence is shown with extracted entities, and search returns the source
+page. The sample resume and response values are illustrative, not a recording of a live
+Tesseract run; OCR output depends on the uploaded document and installed engine.
+
+![Illustrated document upload, asynchronous processing, evidence, and search workflow](docs/images/document-workflow.gif)
+
+The earlier crawler-only component diagram remains available at
+[`docs/images/architecture.png`](docs/images/architecture.png). For detailed subsystem
+notes, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and the
+[`OpenAPI contract`](openapi.yaml).
 
 ---
 

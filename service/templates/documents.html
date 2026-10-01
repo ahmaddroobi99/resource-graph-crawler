@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Document Workbench</title>
+    <style>
+        :root {
+            font-family: Georgia, "Palatino Linotype", serif;
+            color: #202b2a;
+            background: #f3f5f2;
+            font-synthesis: none
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0
+        }
+
+        .top {
+            background: #173f3b;
+            color: #f4f5ed;
+            padding: 22px max(24px, calc((100vw - 1160px)/2));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px
+        }
+
+        h1 {
+            font-size: 25px;
+            margin: 0;
+            font-weight: 600
+        }
+
+        .top a {
+            color: #d3e7bf;
+            text-decoration: none;
+            font: 14px Arial, sans-serif
+        }
+
+        .shell {
+            max-width: 1160px;
+            margin: 28px auto;
+            padding: 0 22px 48px
+        }
+
+        .toolbar {
+            display: grid;
+            grid-template-columns: minmax(240px, 1fr) minmax(180px, 260px);
+            gap: 18px;
+            align-items: end;
+            border-bottom: 1px solid #cbd4cc;
+            padding: 0 0 20px;
+            margin-bottom: 22px
+        }
+
+        label {
+            display: block;
+            font: 12px Arial, sans-serif;
+            color: #52645e;
+            margin-bottom: 7px
+        }
+
+        input,
+        textarea {
+            font: 15px Arial, sans-serif;
+            color: #1b2926;
+            background: #fff;
+            border: 1px solid #b9c6be;
+            border-radius: 4px;
+            padding: 10px;
+            width: 100%
+        }
+
+        button {
+            border: 0;
+            border-radius: 4px;
+            background: #bf4c32;
+            color: #fff;
+            padding: 10px 14px;
+            font: 600 14px Arial, sans-serif;
+            cursor: pointer
+        }
+
+        button:hover {
+            background: #a23d29
+        }
+
+        button:disabled {
+            opacity: .55;
+            cursor: wait
+        }
+
+        .upload {
+            display: grid;
+            grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 1fr) auto;
+            gap: 14px;
+            align-items: end;
+            padding: 8px 0 24px;
+            border-bottom: 1px solid #cbd4cc
+        }
+
+        .search {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            max-width: 560px;
+            margin: 20px 0
+        }
+
+        .status {
+            min-height: 25px;
+            font: 14px Arial, sans-serif;
+            color: #34554e;
+            margin: 12px 0
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 26px;
+            margin-top: 22px
+        }
+
+        .results section {
+            min-width: 0;
+            border-top: 3px solid #d2a33f;
+            padding-top: 10px
+        }
+
+        h2 {
+            font-size: 18px;
+            margin: 0 0 12px
+        }
+
+        h3 {
+            font: 600 13px Arial, sans-serif;
+            color: #52645e;
+            margin: 16px 0 7px
+        }
+
+        pre {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            background: #e8ede8;
+            border-left: 3px solid #548477;
+            padding: 12px;
+            font: 12px/1.5 Consolas, monospace;
+            max-height: 360px;
+            overflow: auto
+        }
+
+        .entity-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px
+        }
+
+        .entity {
+            background: #fff;
+            border: 1px solid #b9c6be;
+            border-radius: 3px;
+            color: #173f3b;
+            padding: 7px 9px;
+            font: 13px Arial, sans-serif
+        }
+
+        .muted {
+            color: #788680;
+            font: 13px Arial, sans-serif
+        }
+
+        .error {
+            color: #a23d29
+        }
+
+        .progress {
+            height: 5px;
+            background: #d9e0da;
+            margin: 8px 0 16px
+        }
+
+        .progress span {
+            display: block;
+            height: 100%;
+            background: #bf4c32;
+            width: 0;
+            transition: width .25s ease
+        }
+
+        @media(max-width:720px) {
+
+            .toolbar,
+            .upload,
+            .results {
+                grid-template-columns: 1fr
+            }
+
+            .top {
+                align-items: flex-start;
+                flex-direction: column
+            }
+
+            .upload button {
+                width: 100%
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="top">
+        <h1>Document Workbench</h1><a href="/">Resource Graph Crawler</a>
+    </header>
+    <main class="shell">
+        <div class="toolbar">
+            <div><label for="api-key">Document API key</label><input id="api-key" type="password" autocomplete="off">
+            </div>
+            <div><label for="document-id">Document ID</label><input id="document-id"
+                    placeholder="Upload or enter an ID"></div>
+        </div>
+        <form id="upload-form" class="upload">
+            <div><label for="file">PDF, PNG, or JPEG</label><input id="file" name="file" type="file"
+                    accept="application/pdf,image/png,image/jpeg" required></div>
+            <div><label for="metadata">Metadata JSON (optional)</label><input id="metadata" name="metadata"
+                    placeholder='{"source":"user_upload"}'></div>
+            <button id="upload-button" type="submit">Upload document</button>
+        </form>
+        <div id="status" class="status" role="status" aria-live="polite">Ready</div>
+        <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+        <form id="search-form" class="search">
+            <div><label for="query">Search processed documents</label><input id="query" name="q" type="search" required>
+            </div>
+            <button type="submit">Search</button>
+        </form>
+        <div class="results">
+            <section>
+                <h2>Pages and OCR</h2>
+                <div id="pages" class="muted">No document selected</div>
+            </section>
+            <section>
+                <h2>Entities and evidence</h2>
+                <div id="entities" class="entity-list muted">No entities loaded</div>
+                <pre id="evidence" hidden></pre>
+            </section>
+        </div>
+        <section>
+            <h2>Search results</h2>
+            <div id="search-results" class="muted">No search performed</div>
+        </section>
+    </main>
+    <script>
+        const byId = (id) => document.getElementById(id);
+        let activeDocument = null;
+        const key = () => byId('api-key').value;
+        const setStatus = (text, isError = false) => {
+            byId('status').textContent = text;
+            byId('status').classList.toggle('error', isError);
+        };
+        async function api(path, options = {}) {
+            const headers = new Headers(options.headers || {});
+            headers.set('Authorization', `Bearer ${key()}`);
+            const response = await fetch(path, { ...options, headers });
+            const body = await response.json();
+            if (!response.ok) throw new Error(body.error?.message || `Request failed (${response.status})`);
+            return body;
+        }
+        function showJson(target, value) {
+            if (target.tagName === 'PRE') {
+                target.textContent = JSON.stringify(value, null, 2);
+                target.hidden = false;
+                return;
+            }
+            target.replaceChildren();
+            const pre = document.createElement('pre');
+            pre.textContent = JSON.stringify(value, null, 2);
+            target.append(pre);
+        }
+        async function loadResults(documentId) {
+            const [pages, entities, errors] = await Promise.all([
+                api(`/api/v1/documents/${encodeURIComponent(documentId)}/pages?limit=100`),
+                api(`/api/v1/documents/${encodeURIComponent(documentId)}/entities?limit=100`),
+                api(`/api/v1/documents/${encodeURIComponent(documentId)}/errors`)
+            ]);
+            showJson(byId('pages'), { pages: pages.pages, errors: errors.errors });
+            const entityList = byId('entities');
+            entityList.replaceChildren();
+            if (!entities.entities.length) entityList.textContent = 'No entities extracted';
+            for (const entity of entities.entities) {
+                const button = document.createElement('button');
+                button.className = 'entity';
+                button.textContent = `${entity.type}: ${entity.text}`;
+                button.addEventListener('click', () => {
+                    showJson(byId('evidence'), entity.evidence);
+                    const sourcePage = pages.pages.find(page => page.page === entity.evidence?.page);
+                    if (sourcePage) showJson(byId('pages'), { page: sourcePage });
+                });
+                entityList.append(button);
+            }
+        }
+        async function poll(documentId) {
+            let delay = 1200;
+            for (let count = 0; count < 120; count++) {
+                const state = await api(`/api/v1/documents/${encodeURIComponent(documentId)}/status`);
+                const percent = state.progress?.percent;
+                byId('progress-bar').style.width = Number.isFinite(percent) ? `${percent}%` : '0%';
+                const stage = state.progress?.stage || state.job.status;
+                setStatus(`${state.document_status} · ${stage} · ${state.pages.processed}/${state.pages.total ?? '?'} pages`);
+                if (['COMPLETED', 'PARTIAL', 'FAILED'].includes(state.job.status)) {
+                    await loadResults(documentId);
+                    return;
+                }
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay = Math.min(5000, Math.round(delay * 1.25));
+            }
+            setStatus('Processing continues. Refresh status later using this document ID.', true);
+        }
+        byId('upload-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const file = byId('file').files[0];
+            if (!file) return;
+            const form = new FormData();
+            form.append('file', file);
+            if (byId('metadata').value.trim()) form.append('metadata', byId('metadata').value.trim());
+            byId('upload-button').disabled = true;
+            setStatus('Uploading and validating…');
+            try {
+                const body = await api('/api/v1/documents', {
+                    method: 'POST', body: form, headers: { 'Idempotency-Key': crypto.randomUUID?.() || `${Date.now()}-${Math.random()}` }
+                });
+                activeDocument = body.document.id;
+                byId('document-id').value = activeDocument;
+                await poll(activeDocument);
+            } catch (error) {
+                setStatus(error.message, true);
+            } finally {
+                byId('upload-button').disabled = false;
+            }
+        });
+        byId('search-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const query = byId('query').value.trim();
+            if (!query) return;
+            try {
+                const body = await api(`/api/v1/search?q=${encodeURIComponent(query)}&limit=20`);
+                showJson(byId('search-results'), body);
+            } catch (error) {
+                setStatus(error.message, true);
+            }
+        });
+        byId('document-id').addEventListener('change', async (event) => {
+            const documentId = event.target.value.trim();
+            if (!documentId) return;
+            activeDocument = documentId;
+            try { await poll(documentId); } catch (error) { setStatus(error.message, true); }
+        });
+    </script>
+</body>
+
+</html>

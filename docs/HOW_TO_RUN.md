@@ -116,3 +116,27 @@ The second command must return `8`. The file must contain only the eight extract
 | Layered explanation | `ARCHITECTURE.md` |
 
 The password identified in the report as a likely genuine credential leak is the one found near an `ADMIN_PASSWORD` and `FIXME` JavaScript comment. That conclusion is based on the fetched body context, never on response headers alone.
+
+## 7. Document Workbench (Local/Docker)
+
+The separate document API processes submitted PDFs, PNGs, and JPEGs asynchronously. Install
+the Python packages and a native Tesseract executable. On Windows, ensure `tesseract.exe`
+is on `PATH`.
+
+```powershell
+python -m pip install -r requirements-documents.txt
+$env:RGC_DOCUMENT_API_KEY = "replace-with-a-long-random-key"
+uvicorn service.app:app --reload --port 8000
+```
+
+Open `http://127.0.0.1:8000/documents`; enter the same key used in the environment. Upload
+a document, poll its status, inspect OCR pages/entities/evidence, or search processed
+content. The key is not stored by the browser. To use Docker, set `RGC_DOCUMENT_API_KEY`
+in `.env` and run `docker compose up --build`; keep and back up the `document_data` volume.
+
+Default limits are 20 MiB per file, 100 PDF pages, 50 million image pixels, 30 seconds per
+OCR page, and 10 minutes per job. Override them with `RGC_DOCUMENT_*` settings. SQLite and
+the in-process worker support one local/Docker instance only. Document processing is
+disabled on Vercel; the pre-existing crawler API remains available. Full API schemas and
+the operational/security details are in [`ASYNC_DOCUMENT_INTELLIGENCE.md`](ASYNC_DOCUMENT_INTELLIGENCE.md)
+and [`../openapi.yaml`](../openapi.yaml).

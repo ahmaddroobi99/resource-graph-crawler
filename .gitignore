@@ -20,6 +20,9 @@ coverage.xml
 # Generated crawler output
 passwords.txt
 
+# Local document database and uploaded originals
+data/
+
 # Local configuration and secrets
 .env
 .env.*

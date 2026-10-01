@@ -1,0 +1,577 @@
+openapi: 3.1.0
+info:
+  title: Resource Graph Crawler Document API
+  version: 1.2.0
+  description: >-
+    Asynchronous OCR and evidence-backed entity extraction for user-submitted PDF,
+    PNG, and JPEG documents. Document endpoints are available only in local/Docker
+    deployments configured with RGC_DOCUMENT_API_KEY.
+servers:
+  - url: http://127.0.0.1:8000
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/documents:
+    post:
+      operationId: createDocument
+      summary: Upload a document and enqueue asynchronous processing
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+          description: Reusing a key with the same upload returns the existing document and job.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                metadata:
+                  type: string
+                  description: Optional JSON object encoded as a form field.
+                  example: '{"source":"user_upload"}'
+      responses:
+        '201':
+          description: Document persisted and processing job queued; OCR has not been awaited.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '200':
+          description: Existing operation returned for an idempotent replay.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Idempotency key was reused for a different upload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Configured byte, page, or pixel limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Unsupported file contents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Corrupted or unprocessable document.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '503':
+          description: Document processing is disabled for this deployment or configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/documents/{document_id}:
+    get:
+      operationId: getDocument
+      summary: Retrieve document metadata and processing status
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Document metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document]
+                properties:
+                  document:
+                    $ref: '#/components/schemas/Document'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/DocumentNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/documents/{document_id}/status:
+    get:
+      operationId: getDocumentStatus
+      summary: Retrieve asynchronous job, progress, and page state
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Current processing state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/DocumentNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/documents/{document_id}/pages:
+    get:
+      operationId: listDocumentPages
+      summary: Retrieve paginated OCR page results
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: OCR pages and pagination state.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document_id, pages, pagination]
+                properties:
+                  document_id:
+                    $ref: '#/components/schemas/Id'
+                  pages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Page'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/DocumentNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/documents/{document_id}/entities:
+    get:
+      operationId: listDocumentEntities
+      summary: Retrieve paginated extracted entities and evidence
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Entities and pagination state.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document_id, entities, pagination]
+                properties:
+                  document_id:
+                    $ref: '#/components/schemas/Id'
+                  entities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Entity'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/DocumentNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/entities/{entity_id}:
+    get:
+      operationId: getEntity
+      summary: Retrieve one entity with source evidence
+      parameters:
+        - name: entity_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: Entity and provenance.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entity]
+                properties:
+                  entity:
+                    $ref: '#/components/schemas/Entity'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/DocumentNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/documents/{document_id}/errors:
+    get:
+      operationId: listDocumentErrors
+      summary: Retrieve safe processing errors and partial failures
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Processing errors.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [document_id, errors, pagination]
+                properties:
+                  document_id:
+                    $ref: '#/components/schemas/Id'
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProcessingError'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/DocumentNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/search:
+    get:
+      operationId: searchDocuments
+      summary: Search processed OCR text and extracted entities
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Search matches; an empty result list is not an error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Empty query, invalid parameters, or cursor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Set RGC_DOCUMENT_API_KEY and send it as a Bearer token.
+  parameters:
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+  responses:
+    InvalidRequest:
+      description: Invalid request parameters or metadata.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer key.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    DocumentNotFound:
+      description: Document or entity was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Safe internal or database error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: Document processing is disabled for this deployment or configuration.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    Id:
+      type: string
+      description: Opaque resource identifier; clients must not parse its format.
+      examples: [doc_01JABC123XYZ]
+    Timestamp:
+      type: string
+      format: date-time
+      description: ISO 8601 UTC timestamp.
+      examples: ['2026-09-30T18:42:31Z']
+    DocumentStatus:
+      type: string
+      enum: [PROCESSING, COMPLETED, PARTIAL, FAILED]
+    JobStatus:
+      type: string
+      enum: [QUEUED, PROCESSING, COMPLETED, PARTIAL, FAILED]
+    ProcessingStage:
+      type: string
+      enum: [VALIDATION, PERSISTENCE, PREPROCESSING, OCR, ENTITY_EXTRACTION, INDEXING, COMPLETED]
+    EntityType:
+      type: string
+      enum: [PERSON, ORGANIZATION, LOCATION, DATE, EMAIL, URL, SKILL]
+    BoundingBox:
+      type: object
+      required: [x, y, width, height]
+      properties:
+        x: {type: number, minimum: 0, description: Horizontal coordinate from the top-left.}
+        y: {type: number, minimum: 0, description: Vertical coordinate from the top-left.}
+        width: {type: number, minimum: 0}
+        height: {type: number, minimum: 0}
+      description: Pixel coordinates in the preprocessed page raster; page dimensions are returned with each page.
+    Document:
+      type: object
+      required: [id, filename, media_type, size_bytes, status, page_count, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        filename: {type: string}
+        media_type: {type: string, enum: [application/pdf, image/png, image/jpeg]}
+        size_bytes: {type: integer, minimum: 0}
+        status: {$ref: '#/components/schemas/DocumentStatus'}
+        page_count: {type: [integer, 'null'], minimum: 0}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    Job:
+      type: object
+      required: [id, status]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        status: {$ref: '#/components/schemas/JobStatus'}
+    UploadResponse:
+      type: object
+      required: [document, job]
+      properties:
+        document: {$ref: '#/components/schemas/Document'}
+        job: {$ref: '#/components/schemas/Job'}
+    Progress:
+      type: object
+      required: [stage, percent]
+      properties:
+        stage: {$ref: '#/components/schemas/ProcessingStage'}
+        percent: {type: [integer, 'null'], minimum: 0, maximum: 100}
+    DocumentStatusResponse:
+      type: object
+      required: [document_id, job, document_status, progress, pages]
+      properties:
+        document_id: {$ref: '#/components/schemas/Id'}
+        job:
+          $ref: '#/components/schemas/Job'
+        document_status: {$ref: '#/components/schemas/DocumentStatus'}
+        progress:
+          oneOf:
+            - {$ref: '#/components/schemas/Progress'}
+            - type: 'null'
+        pages:
+          type: object
+          required: [total, processed, failed]
+          properties:
+            total: {type: [integer, 'null'], minimum: 0}
+            processed: {type: integer, minimum: 0}
+            failed: {type: array, items: {type: integer, minimum: 1}}
+    OCRBlock:
+      type: object
+      required: [id, text, bbox, confidence]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        text: {type: string}
+        bbox:
+          oneOf:
+            - {$ref: '#/components/schemas/BoundingBox'}
+            - type: 'null'
+        confidence: {type: [number, 'null'], minimum: 0, maximum: 1}
+    Page:
+      type: object
+      required: [page, status, width, height, text, blocks, error]
+      properties:
+        page: {type: integer, minimum: 1}
+        status: {type: string, enum: [COMPLETED, FAILED]}
+        width: {type: [integer, 'null'], minimum: 0}
+        height: {type: [integer, 'null'], minimum: 0}
+        text: {type: string}
+        blocks: {type: array, items: {$ref: '#/components/schemas/OCRBlock'}}
+        error:
+          oneOf:
+            - {$ref: '#/components/schemas/PageError'}
+            - type: 'null'
+    PageError:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string}
+        message: {type: string}
+    Evidence:
+      type: object
+      required: [page, text, bbox]
+      properties:
+        page: {type: integer, minimum: 1}
+        text: {type: string}
+        bbox:
+          oneOf:
+            - {$ref: '#/components/schemas/BoundingBox'}
+            - type: 'null'
+    Entity:
+      type: object
+      required: [id, document_id, text, type, confidence, evidence]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        document_id: {$ref: '#/components/schemas/Id'}
+        text: {type: string}
+        type: {$ref: '#/components/schemas/EntityType'}
+        confidence: {type: [number, 'null'], minimum: 0, maximum: 1}
+        evidence:
+          oneOf:
+            - {$ref: '#/components/schemas/Evidence'}
+            - type: 'null'
+    Pagination:
+      type: object
+      required: [limit, next_cursor]
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 100}
+        next_cursor: {type: [string, 'null']}
+    SearchMatch:
+      type: object
+      required: [type, text, page, bbox]
+      properties:
+        type: {type: string, enum: [TEXT, ENTITY]}
+        text: {type: string}
+        entity_type: {type: string, enum: [PERSON, ORGANIZATION, LOCATION, DATE, EMAIL, URL, SKILL]}
+        page: {type: [integer, 'null'], minimum: 1}
+        bbox:
+          oneOf:
+            - {$ref: '#/components/schemas/BoundingBox'}
+            - type: 'null'
+    SearchResult:
+      type: object
+      required: [document_id, filename, matches]
+      properties:
+        document_id: {$ref: '#/components/schemas/Id'}
+        filename: {type: string}
+        matches: {type: array, items: {$ref: '#/components/schemas/SearchMatch'}}
+    SearchResponse:
+      type: object
+      required: [query, results, pagination]
+      properties:
+        query: {type: string}
+        results: {type: array, items: {$ref: '#/components/schemas/SearchResult'}}
+        pagination: {$ref: '#/components/schemas/Pagination'}
+    ProcessingError:
+      type: object
+      required: [code, message, page, retryable]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        page: {type: [integer, 'null'], minimum: 1}
+        retryable: {type: boolean}
+    ErrorCode:
+      type: string
+      enum:
+        - INVALID_REQUEST
+        - EMPTY_QUERY
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - DOCUMENT_NOT_FOUND
+        - FILE_TOO_LARGE
+        - UNSUPPORTED_FILE_TYPE
+        - EMPTY_FILE
+        - CORRUPTED_DOCUMENT
+        - OCR_FAILED
+        - OCR_PARTIAL
+        - ENTITY_EXTRACTION_FAILED
+        - SEARCH_FAILED
+        - DATABASE_ERROR
+        - TIMEOUT
+        - INTERNAL_ERROR
+        - DOCUMENT_API_DISABLED
+        - SERVICE_UNAVAILABLE
+        - NOT_FOUND
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code: {$ref: '#/components/schemas/ErrorCode'}
+            message: {type: string}
+            details:
+              type: object
+              additionalProperties: true
+    DocumentStatus:
+      type: string
+      enum: [PROCESSING, COMPLETED, PARTIAL, FAILED]

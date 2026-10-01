@@ -54,6 +54,20 @@ API_KEY = _env("RGC_API_KEY")
 SERVICE_NAME = _env("RGC_SERVICE_NAME", "resource-graph-crawler") or "resource-graph-crawler"
 SERVICE_ENV = _env("RGC_ENV") or _env("VERCEL_ENV") or "development"
 
+# Document processing is supported only by local/Docker deployments with durable storage.
+DOCUMENT_DB_PATH = _env("RGC_DOCUMENT_DB_PATH", "data/documents.sqlite3") or "data/documents.sqlite3"
+DOCUMENT_UPLOAD_DIR = _env("RGC_DOCUMENT_UPLOAD_DIR", "data/uploads") or "data/uploads"
+DOCUMENT_API_KEY = _env("RGC_DOCUMENT_API_KEY") or API_KEY
+DOCUMENT_MAX_UPLOAD_SIZE_BYTES = _env_int("RGC_DOCUMENT_MAX_UPLOAD_SIZE_BYTES", 20 * 1024 * 1024)
+DOCUMENT_MAX_PAGES = _env_int("RGC_DOCUMENT_MAX_PAGES", 100)
+DOCUMENT_MAX_PIXELS = _env_int("RGC_DOCUMENT_MAX_PIXELS", 50_000_000)
+DOCUMENT_MAX_OCR_SECONDS = _env_int("RGC_DOCUMENT_MAX_OCR_SECONDS", 30)
+DOCUMENT_MAX_PROCESSING_SECONDS = _env_int("RGC_DOCUMENT_MAX_PROCESSING_SECONDS", 600)
+DOCUMENT_MAX_ATTEMPTS = _env_int("RGC_DOCUMENT_MAX_ATTEMPTS", 3)
+DOCUMENT_RETRY_BASE_SECONDS = _env_int("RGC_DOCUMENT_RETRY_BASE_MILLISECONDS", 500) / 1000
+DOCUMENT_WORKER_POLL_SECONDS = _env_int("RGC_DOCUMENT_WORKER_POLL_MILLISECONDS", 500) / 1000
+IS_SERVERLESS = bool(os.environ.get("VERCEL"))
+
 TRACKING_PARAMS = frozenset({
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
     "ref", "v", "hl", "sid", "session", "gclid", "fbclid", "_", "page",
